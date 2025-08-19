@@ -10,19 +10,25 @@ st.set_page_config(page_title="Excel 上傳→修改→下載（含登入）", p
 # 產生雜湊方式：見文末「產生雜湊」小工具
 names = ["Alice", "Bob"]
 usernames = ["alice", "bob"]
-hashed_pw = stauth.Hasher([
-    # 這裡放明碼只用於 Demo！請改成把雜湊字串直接貼進來：
-    # e.g. "$2b$12$kKQZr........"
-    "Pass123!", "Pass456!"
-]).generate()
+
+# 產生雜湊（只在本機先跑一次拿結果；正式版請直接貼雜湊字串）
+hashed_pw = stauth.Hasher(["Pass123!", "Pass456!"]).generate()
+
+credentials = {
+    "usernames": {
+        "alice": {"name": "Alice", "email": "alice@demo.com", "password": hashed_pw[0]},
+        "bob":   {"name": "Bob",   "email": "bob@demo.com",   "password": hashed_pw[1]},
+    }
+}
 
 authenticator = stauth.Authenticate(
-    names, usernames, hashed_pw,
-    "xl_app_cookie", "super_secret_key_change_me", cookie_expiry_days=1
+    credentials,
+    "xl_app_cookie",                 # cookie 名稱
+    "super_secret_key_change_me",    # cookie 密鑰
+    1                                # cookie 有效天數
 )
 
 name, auth_status, username = authenticator.login("登入", "main")
-
 if auth_status is False:
     st.error("帳號或密碼錯誤")
 elif auth_status is None:
@@ -85,3 +91,4 @@ else:
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
         st.info("若圖表來源綁『表格 (Ctrl+T)』或動態範圍，追加資料後打開檔案圖表會自動延伸。")
+
