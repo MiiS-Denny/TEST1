@@ -6,35 +6,26 @@ import streamlit_authenticator as stauth
 
 st.set_page_config(page_title="Excel 上傳→修改→下載（含登入）", page_icon="🔐", layout="centered")
 
-# ====== 登入設定（示範用，請改成你自己的雜湊）======
-# 產生雜湊方式：見文末「產生雜湊」小工具
+# === 登入設定（用 0.3.2 介面）===
 names = ["Alice", "Bob"]
 usernames = ["alice", "bob"]
-
-# 產生雜湊（只在本機先跑一次拿結果；正式版請直接貼雜湊字串）
-hashed_pw = stauth.Hasher(["Pass123!", "Pass456!"]).generate()
-
-credentials = {
-    "usernames": {
-        "alice": {"name": "Alice", "email": "alice@demo.com", "password": hashed_pw[0]},
-        "bob":   {"name": "Bob",   "email": "bob@demo.com",   "password": hashed_pw[1]},
-    }
-}
+hashed_pw = [
+    "<<<$2b$12$RiAj0csoHpz..yZDuxIrFOdA/TBpjws5dm0Z9FLQWXSQpEzA1yKb2>>>",
+    "<<<$2b$12$eVqAtCp3iq/uigqxRLo.m.8DtSE1EgtzXQ.Rdewo4275/uIDmLHQS>>>",
+]
 
 authenticator = stauth.Authenticate(
-    credentials,
-    "xl_app_cookie",                 # cookie 名稱
-    "super_secret_key_change_me",    # cookie 密鑰
-    1                                # cookie 有效天數
+    names, usernames, hashed_pw,
+    "xl_app_cookie", "super_secret_key_change_me", cookie_expiry_days=1
 )
 
 name, auth_status, username = authenticator.login("登入", "main")
+
 if auth_status is False:
     st.error("帳號或密碼錯誤")
 elif auth_status is None:
     st.info("請輸入帳密")
 else:
-    # ====== 通過登入，顯示主功能 ======
     authenticator.logout("登出", "sidebar")
     st.success(f"歡迎，{name}！")
     st.title("📄 Excel 雲端修改器（上傳→修改→下載）")
@@ -57,23 +48,23 @@ else:
         note = st.text_input("備註", "")
 
     target_sheet = st.text_input("要寫入的工作表（預設 Data）", value="Data")
-    add_timestamp = st.checkbox("下載檔名加上時間戳", value=True)
+    add_ts = st.checkbox("下載檔名加上時間戳", value=True)
 
     if uploaded is not None and st.button("開始修改並提供下載"):
-        # 讀入並保持公式/格式/圖表
         data = uploaded.read()
         wb = load_workbook(BytesIO(data), data_only=False, keep_vba=False)
         ws = wb[target_sheet] if target_sheet in wb.sheetnames else wb.create_sheet(title=target_sheet)
 
-        # 追加一列
+        # 若有填日期，視為要追加一列
         if date_str:
             if not (len(date_str) == 8 and date_str.isdigit()):
                 st.error("日期需為 8 位數字（YYYYMMDD）。")
                 st.stop()
-            if ws.max_row == 1 and all((cell.value is None) for cell in ws[1]):
+            # 如果是空表，先建表頭
+            if ws.max_row == 1 and all((c.value is None) for c in ws[1]):
                 ws.append(["date_str","value_1","value_2","value_3","value_4","value_5","value_6","note"])
             ws.append([date_str, v1, v2, v3, v4, v5, v6, note])
-            # 第一欄強制文字格式（避免被 Excel 轉日期）
+            # 第一欄強制文字格式避免自動轉日期
             for cell in ws["A"]:
                 cell.number_format = "@"
 
@@ -82,7 +73,7 @@ else:
         out.seek(0)
 
         base = uploaded.name.rsplit(".xlsx", 1)[0]
-        fname = f"{base}-{datetime.now().strftime('%Y%m%d-%H%M%S')}.xlsx" if add_timestamp else f"{base}.xlsx"
+        fname = f"{base}-{datetime.now().strftime('%Y%m%d-%H%M%S')}.xlsx" if add_ts else f"{base}.xlsx"
 
         st.download_button(
             "📥 下載修改後的 Excel",
@@ -91,4 +82,3 @@ else:
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
         st.info("若圖表來源綁『表格 (Ctrl+T)』或動態範圍，追加資料後打開檔案圖表會自動延伸。")
-
